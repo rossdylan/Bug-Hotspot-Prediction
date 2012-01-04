@@ -7,5 +7,6 @@ It then uses the algorithm described above to calculate a score
 for each file. Higher scores are usually indicators of a bug hotspot.
 
 TODO:
-Have the program remove commits that add and remove files.
+Have the program remove commits that add and remove files. [COMPLETED]
+Make sure all commits are loaded from repositories that have LOTS of them
 A more oranized display of data after running the program.
