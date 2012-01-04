@@ -1,4 +1,4 @@
-#!/opt/local/bin/python3.2
+#!/usr/bin/python3
 import urllib.request
 import urllib.parse
 import json
@@ -23,8 +23,9 @@ def parseGitTimeString(timeString):
 	posix = time.mktime(dtObject.timetuple())
 	return posix
 
+
 class gitRepository(object):
-	def __init__(self,user,repo,branch=None):
+	def __init__(self, user, repo, branch=None):
 		self.user = user
 		self.repo = repo
 		self.branch = branch
@@ -32,7 +33,7 @@ class gitRepository(object):
 	def getCommits(self):
 		"""Get a list of commits"""
 		requestString = "https://api.github.com/repos/{}/{}/commits"
-		requestString = requestString.format(self.user,self.repo)
+		requestString = requestString.format(self.user, self.repo)
 		data = None
 		if self.branch != None:
 			response = urllib.request.urlopen(requestString,
@@ -42,14 +43,16 @@ class gitRepository(object):
 			response = urllib.request.urlopen(requestString)
 			data = response.read().decode('utf-8')
 			data = json.loads(data)
-		data = sorted(data,key=lambda item:parseGitTimeString(item['commit']['committer']['date']))
+		data = sorted(data,
+				key=lambda item: parseGitTimeString(item['commit']['committer']['date']))
+
 		return data
 
 	def getChangedFilesForCommits(self):
 		"""Return a list of files changed for each commit"""
 		"""Returns [{'time':time, 'files':[filenames,]}]"""
 		requestString = "https://api.github.com/repos/{}/{}/compare"
-		requestString = requestString.format(self.user,self.repo)
+		requestString = requestString.format(self.user, self.repo)
 		commits = self.getCommits()
 		changes = []
 		for commitIndex in range(len(commits)):
@@ -57,24 +60,26 @@ class gitRepository(object):
 				continue
 			else:
 				current = commits[commitIndex]['sha']
-				previous = commits[commitIndex-1]['sha']
+				previous = commits[commitIndex - 1]['sha']
 				commitTime = parseGitTimeString(commits[commitIndex]['commit']['committer']['date'])
-				print('Comparing: {} - {}'.format(previous,current))
 				compareString = "/{}...{}"
-				compareString = compareString.format(previous,current)
+				compareString = compareString.format(previous, current)
 				tempRequestString = requestString + compareString
 				response = urllib.request.urlopen(tempRequestString)
 				data = response.read().decode('utf-8')
 				data = json.loads(data)
 				files = data['files']
 				#this right here is wrong... should be commitsha:{time:124523523,files:changed}
-				filesChanged = {'time':commitTime, 'files':[file['filename'] for file in files]}
+				filesChanged = {'time': commitTime, 'files': [file['filename'] for file in files if file['status'] == 'modified']}
 				changes.append(filesChanged)
 		return changes
+
 
 def calculateSingleScore(time):
 	"""Calculate a single part of a files score"""
 	return 1 / (1 + math.pow(math.e, -12 * (time + 12)))
+
+
 def predictBugs(commitChanges):
 	"""First step is to find our first commit time,
 		this becomes our zero point"""
@@ -90,7 +95,7 @@ def predictBugs(commitChanges):
 	modifiedChanges = []
 	for change in commitChanges:
 		normTime = (change['time'] - earliestCommitTime) / (math.fabs(earliestCommitTime) + math.fabs(latestCommitTime))
-		modifiedChanges.append({'time':normTime,'files':change['files']})
+		modifiedChanges.append({'time': normTime, 'files': change['files']})
 	commitChanges = modifiedChanges
 	"""Now we need to calculate each files score"""
 	score = {}
@@ -100,15 +105,20 @@ def predictBugs(commitChanges):
 				score[file] += calculateSingleScore(change['time'])
 			else:
 				score[file] = calculateSingleScore(change['time'])
-	return score
+	"""Now to Sort it out"""
+	scoreList = []
+	for key in score:
+		scoreList.append((key, score[key]))
+	return scoreList
 
-def prettyPrintScoreDict(d):
-	print("{")
-	for key in d:
-		print("\t{}: {}".format(key,d[key]))
-	print("}")
+
+def prettyPrintScoreList(l):
+	l = sorted(l, key=lambda item: item[1])
+	print("Results")
+	for item in l:
+		print("{}: {}".format(item[0], item[1]))
 
 
 if __name__ == "__main__":
-	repository = gitRepository(input('Username: '),input('Repository: '))
-	prettyPrintScoreDict(predictBugs(repository.getChangedFilesForCommits()))
+	repository = gitRepository(input('Username: '), input('Repository: '))
+	prettyPrintScoreList(predictBugs(repository.getChangedFilesForCommits()))
